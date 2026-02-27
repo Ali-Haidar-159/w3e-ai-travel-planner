@@ -38,18 +38,38 @@ from utils.markdown_output import build_final_markdown, save_markdown_output
 logger = configure_travel_planner_logger()
 
 
+def log_crew_usage_metrics(crew: Crew) -> None:
+    """Log aggregate CrewAI token usage after kickoff."""
+    usage = getattr(crew, "usage_metrics", None)
+    if not usage:
+        return
+
+    logger.info(
+        (
+            "Crew total token usage | prompt=%s completion=%s "
+            "cached_prompt=%s total=%s requests=%s"
+        ),
+        getattr(usage, "prompt_tokens", 0),
+        getattr(usage, "completion_tokens", 0),
+        getattr(usage, "cached_prompt_tokens", 0),
+        getattr(usage, "total_tokens", 0),
+        getattr(usage, "successful_requests", 0),
+    )
+
+
 def get_llm():
     api_key = os.getenv("GROQ_API_KEY", "")
     if not api_key:
         logger.error("GROQ_API_KEY is not set. Please add it to your .env file.")
         sys.exit(1)
-    return LLM(
+    llm = LLM(
         model="llama-3.3-70b-versatile" ,
         provider="openai",
         api_key=api_key,
         base_url="https://api.groq.com/openai/v1",
         temperature=0.3,
     )
+    return llm
 
 
 def run_travel_planner(
@@ -132,6 +152,7 @@ def run_travel_planner(
 
     try:
         result = crew.kickoff()
+        log_crew_usage_metrics(crew)
         if hasattr(result, "tasks_output") and len(result.tasks_output) >= 4:
             sections["destination"] = result.tasks_output[0].raw or sections["destination"]
             sections["budget"] = result.tasks_output[1].raw or sections["budget"]
